@@ -1,0 +1,5 @@
+---
+
+classname: "VCAP::Services::Marketplace::Dummy::DummyMarketplace"
+
+node_timeout: 15

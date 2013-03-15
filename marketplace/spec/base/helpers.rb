@@ -18,7 +18,7 @@ class MarketplaceGatewayHelper
   def get_config
     config = load_config("test")
     config[:cloud_controller_uri] = "#{LOCALHOST}:#{CC_PORT}"
-    config[:mbus] = "nats://nats:nats@#{VCAP.local_ip}:4222"
+    config[:mbus] = "nats://admin:admin@#{VCAP.local_ip}:4222"
     config[:host] = LOCALHOST
     config[:port] = GW_PORT
     config[:url] = "http://#{LOCALHOST}:#{GW_PORT}"
