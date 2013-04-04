@@ -16,17 +16,19 @@ module VCAP
 end
 
 require "postgresql_service/common"
+require "postgresql_service/postgresql_error"
+require "postgresql_service/pg_timeout"
 require "postgresql_service/util"
 require "postgresql_service/model"
 require "postgresql_service/storage_quota"
-require "postgresql_service/postgresql_error"
+require "postgresql_service/xlog_enforce"
 require "postgresql_service/pagecache"
-require "postgresql_service/pg_timeout"
 
 class VCAP::Services::Postgresql::Node
 
   KEEP_ALIVE_INTERVAL = 15
   STORAGE_QUOTA_INTERVAL = 1
+  XLOG_ENFORCE_INTERVAL = 1
 
   include VCAP::Services::Postgresql::Util
   include VCAP::Services::Postgresql::Pagecache
@@ -42,6 +44,7 @@ class VCAP::Services::Postgresql::Node
     @max_long_query = options[:max_long_query]
     @max_long_tx = options[:max_long_tx]
     @max_db_conns = options[:max_db_conns]
+    @enable_xlog_enforcer = options[:enable_xlog_enforcer]
 
     @base_dir = options[:base_dir]
     FileUtils.mkdir_p(@base_dir) if @base_dir
@@ -58,6 +61,7 @@ class VCAP::Services::Postgresql::Node
     @kill_long_queries_lock = Mutex.new
     @kill_long_transaction_lock = Mutex.new
     @enforce_quota_lock = Mutex.new
+    @enforce_xlog_lock = Mutex.new
 
     # connect_timeout & query_timeout
     PGDBconn.init(options)
@@ -102,6 +106,7 @@ class VCAP::Services::Postgresql::Node
     EM.add_periodic_timer(@max_long_query.to_f / 2) { EM.defer{kill_long_queries} } if @max_long_query > 0
     EM.add_periodic_timer(@max_long_tx.to_f / 2) { EM.defer{kill_long_transaction} } if @max_long_tx > 0
     EM.add_periodic_timer(STORAGE_QUOTA_INTERVAL) { EM.defer{enforce_storage_quota} }
+    EM.add_periodic_timer(XLOG_ENFORCE_INTERVAL) { EM.defer{ xlog_enforce} } if @enable_xlog_enforcer
     setup_image_cache_cleaner(@options)
   end
 
@@ -448,35 +453,12 @@ class VCAP::Services::Postgresql::Node
     begin
       db_connection.query("DROP OWNED BY #{binduser.user}")
       db_connection.query("DROP OWNED BY #{binduser.sys_user}")
-      version = pg_version(db_connection, :major => true)
-      case version
-      when '9'
-        db_connection.query("REVOKE ALL ON ALL TABLES IN SCHEMA PUBLIC from #{binduser.user} CASCADE")
-        db_connection.query("REVOKE ALL ON ALL SEQUENCES IN SCHEMA PUBLIC from #{binduser.user} CASCADE")
-        db_connection.query("REVOKE ALL ON ALL FUNCTIONS IN SCHEMA PUBLIC from #{binduser.user} CASCADE")
-        db_connection.query("REVOKE ALL ON ALL TABLES IN SCHEMA PUBLIC from #{binduser.sys_user} CASCADE")
-        db_connection.query("REVOKE ALL ON ALL SEQUENCES IN SCHEMA PUBLIC from #{binduser.sys_user} CASCADE")
-        db_connection.query("REVOKE ALL ON ALL FUNCTIONS IN SCHEMA PUBLIC from #{binduser.sys_user} CASCADE")
-      when '8'
-        queries = db_connection.query("select 'REVOKE ALL ON '||tablename||' from #{binduser.user} CASCADE;' as query_to_do from pg_tables where schemaname = 'public'")
-        queries.each do |query_to_do|
-          db_connection.query(query_to_do['query_to_do'].to_s)
-        end
-        queries = db_connection.query("select 'REVOKE ALL ON SEQUENCE '||relname||' from #{binduser.user} CASCADE;' as query_to_do from pg_class where relkind = 'S'")
-        queries.each do |query_to_do|
-          db_connection.query(query_to_do['query_to_do'].to_s)
-        end
-        queries = db_connection.query("select 'REVOKE ALL ON '||tablename||' from #{binduser.sys_user} CASCADE;' as query_to_do from pg_tables where schemaname = 'public'")
-        queries.each do |query_to_do|
-          db_connection.query(query_to_do['query_to_do'].to_s)
-        end
-        queries = db_connection.query("select 'REVOKE ALL ON SEQUENCE '||relname||' from #{binduser.sys_user} CASCADE;' as query_to_do from pg_class where relkind = 'S'")
-        queries.each do |query_to_do|
-          db_connection.query(query_to_do['query_to_do'].to_s)
-        end
-      else
-        raise "PostgreSQL version #{version} unsupported"
-      end
+      db_connection.query("REVOKE ALL ON ALL TABLES IN SCHEMA PUBLIC from #{binduser.user} CASCADE")
+      db_connection.query("REVOKE ALL ON ALL SEQUENCES IN SCHEMA PUBLIC from #{binduser.user} CASCADE")
+      db_connection.query("REVOKE ALL ON ALL FUNCTIONS IN SCHEMA PUBLIC from #{binduser.user} CASCADE")
+      db_connection.query("REVOKE ALL ON ALL TABLES IN SCHEMA PUBLIC from #{binduser.sys_user} CASCADE")
+      db_connection.query("REVOKE ALL ON ALL SEQUENCES IN SCHEMA PUBLIC from #{binduser.sys_user} CASCADE")
+      db_connection.query("REVOKE ALL ON ALL FUNCTIONS IN SCHEMA PUBLIC from #{binduser.sys_user} CASCADE")
       db_connection.query("REVOKE ALL ON DATABASE #{db} from #{binduser.user} CASCADE")
       db_connection.query("REVOKE ALL ON SCHEMA PUBLIC from #{binduser.user} CASCADE")
       db_connection.query("REVOKE ALL ON DATABASE #{db} from #{binduser.sys_user} CASCADE")
@@ -676,7 +658,7 @@ class VCAP::Services::Postgresql::Node
     end
     varz
   rescue => e
-    @logger.warn("Error during generate varz: #{e}")
+    @logger.warn("Error during generate varz: #{fmt_error(e)}")
     {}
   end
 

@@ -15,3 +15,6 @@ nats-server.pid
 base/pkg
 coverage
 .gitreview
+bundle/
+/tmp/
+*/doc

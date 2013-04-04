@@ -1,0 +1,14 @@
+source "https://rubygems.org"
+
+gem "cf-uaa-lib"
+gem "rspec"
+gem "nats"
+gem "yajl-ruby"
+gem "httpclient"
+gem "sinatra"
+gem "vcr"
+gem "webmock"
+gem "httpclient"
+gem "rake"
+
+gem "debugger", group: :test

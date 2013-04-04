@@ -80,6 +80,7 @@ describe VCAP::Services::Rabbit::Node do
     before :all do
       @credentials = @node.provision(:free)
       @instance = @node.get_instance(@credentials["name"])
+      @admin_credentials = @node.gen_admin_credentials(@instance)
     end
 
     after :all do
@@ -89,6 +90,19 @@ describe VCAP::Services::Rabbit::Node do
     it "should access the instance using the credentials returned by successful provision" do
       amqp_start(@credentials, @instance).should == true
     end
+
+    it "should create monitoring user on provision" do
+      monit_user = @node.list_users(@admin_credentials).find{|user| user["name"] == @credentials["monit_user"]}
+      monit_user.should be
+      monit_user["tags"].should == "monitoring"
+    end
+
+    it "should export admin port for instance handle" do
+      @credentials["admin_port"].should be
+      client = RestClient::Resource.new("http://#{@credentials["username"]}:#{@credentials["password"]}@#{VCAP.local_ip}:#{@credentials["admin_port"]}/api")
+      expect {client["queues"].get}.should_not raise_error
+    end
+
 
     it "should not allow null credentials to access the instance" do
       credentials = @credentials.clone
@@ -138,11 +152,18 @@ describe VCAP::Services::Rabbit::Node do
       @instance_credentials = @node.provision(:free)
       @instance = @node.get_instance(@instance_credentials["name"])
       @binding_credentials = @node.bind(@instance_credentials["name"])
+      @admin_credentials = @node.gen_admin_credentials(@instance)
     end
 
     after :all do
       @node.unbind(@binding_credentials)
       @node.unprovision(@instance_credentials["name"])
+    end
+
+    it "should be tagged with 'management' for binding user" do
+      bind_user = @node.list_users(@admin_credentials).find{|user| user["name"] == @binding_credentials["username"]}
+      bind_user.should be
+      bind_user["tags"].should == "management"
     end
 
     it "should access rabbitmq server use the returned credential" do

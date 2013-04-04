@@ -15,40 +15,24 @@ max_db_size: 30
 max_long_query: 3
 max_long_tx: 30
 max_db_conns: 20
+enable_xlog_enforcer: true
+xlog_enforce_tolerance: 5
 db_connect_timeout: 3
 db_query_timeout: 10
 db_use_async_query: true
-use_warden: false
+use_warden: true
 warden:
   port_range:
     first: 25001
     last: 45000
   service_log_dir: /var/vcap/services/postgresql/log
   service_bin_dir:
-    '9.0': /var/vcap/packages/postgresql
-    '9.1': /var/vcap/packages/postgresql91
     '9.2': /var/vcap/packages/postgresql92
   service_common_dir: /var/vcap/store/postgresql_common
   image_dir: /var/vcap/services/postgresql/image
   service_start_timeout: 3
   filesystem_quota: false
 postgresql:
-  '9.0':
-    host: 127.0.0.1
-    port: 5432
-    user: vcap
-    pass: vcap
-    database: postgres
-    restore_bin: /var/vcap/packages/postgresql/bin/pg_restore
-    dump_bin: /var/vcap/packages/postgresql/bin/pg_dump
-  '9.1':
-    host: 127.0.0.1
-    port: 5433
-    user: vcap
-    pass: vcap
-    database: postgres
-    restore_bin: /var/vcap/packages/postgresql91/bin/pg_restore
-    dump_bin: /var/vcap/packages/postgresql91/bin/pg_dump
   '9.2':
     host: 127.0.0.1
     port: 5434
@@ -57,8 +41,8 @@ postgresql:
     database: postgres
     restore_bin: /var/vcap/packages/postgresql92/bin/pg_restore
     dump_bin: /var/vcap/packages/postgresql92/bin/pg_dump
-supported_versions: ['9.0', '9.1', '9.2']
-default_version: '9.1'
+supported_versions: ['9.2']
+default_version: '9.2'
 
 # z_interval: 30
 # fqdn_hosts: false

@@ -1,0 +1,20 @@
+---
+
+classname: "VCAP::Services::Marketplace::Appdirect::AppdirectMarketplace"
+
+node_timeout: 15
+
+# appdirect configuration
+appdirect:
+  endpoint: "http://localhost:9999"
+  key:    "k"
+  secret: "s"
+
+offering_whitelist: [ "mongodb_mongolab" ]
+
+offering_mapping:
+  mongodb_mongolab:
+    cc_name: mongodb
+    cc_provider: mongolab
+    ad_name: mongodb
+    ad_provider: mongolab

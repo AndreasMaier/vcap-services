@@ -1,24 +1,25 @@
 require 'tmpdir'
+require 'rake'
+require 'tempfile'
+
+require 'rubygems'
+#require 'bundler'
+#Bundler.require(:default, :test)
+
+require 'rspec'
+require 'rspec/core/rake_task'
 
 NG_SERVICES_DIR = %w(
-  atmos
-  couchdb
   echo
-  elasticsearch
-  filesystem
   marketplace
-  memcached
-  neo4j
   oauth2
   service_broker
   tools/backup/manager
   ng/mysql
   ng/postgresql
-  ng/vblob
   ng/mongodb
   ng/redis
   ng/rabbit
-  ng/memcached
 )
 
 NON_NG_SERVICE_DIR = %w(
@@ -27,8 +28,9 @@ NON_NG_SERVICE_DIR = %w(
   postgresql
   rabbit
   redis
-  vblob
 )
+
+task "default" => "spec"
 
 desc "Run integration tests."
 task "tests" do |t|
@@ -126,5 +128,36 @@ namespace "bundler" do
     end
 
     FileUtils.rm_rf(working_dir)
+  end
+end
+
+def run_or_raise(cmd)
+  raise "Failed to run #{cmd}" unless system(cmd)
+end
+
+RSpec::Core::RakeTask.new(:spec) do |t|
+  t.pattern = "#{Rake.application.original_dir}/spec/**/*_spec.rb"
+  t.rspec_opts = ["--format", "documentation", "--colour"]
+end
+
+namespace "nats" do
+  task :start do
+    run_or_raise "nats-server &" if `ps ax | grep nats-server | grep -v grep`.empty?
+  end
+
+  task :stop do
+    system "pkill -f nats-server"
+  end
+end
+
+task :spec => "nats:start" do
+  Rake::Task["nats:stop"].invoke
+end
+
+namespace :spec do
+  task :integration do
+    Dir.chdir "spec" do
+      run_or_raise "bundle exec rspec integration"
+    end
   end
 end
