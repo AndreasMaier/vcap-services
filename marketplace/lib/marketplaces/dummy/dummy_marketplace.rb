@@ -61,15 +61,15 @@ module VCAP
 
             testservice_c = {
               "id" => "postgresql",
-              "version" => "9.1",
-              "label" => "postgresql-9.1",
+              "version" => "9.2",
+              "label" => "postgresql-9.2",
               "name" => "PostgreSQL",
               "description" => "My PostgreSQL Service",
               "plans" => [ "100", "free" ],
               "default_plan" => "100",
               "provider" => "core",
-              "supported_versions" => ["9.1"],
-              "version_aliases" => { "current" => "9.1" },
+              "supported_versions" => ["9.2"],
+              "version_aliases" => { "current" => "9.2" },
               "timeout" => @node_timeout,
               "url" => @external_uri
             }
